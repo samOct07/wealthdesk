@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug s01 solution agent",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "wealthdesk.agent",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/s01/solution",
+            "python": "${workspaceFolder}/.venv-py312/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/s01/solution"
+            },
+            "justMyCode": true
+        }
+    ]
+}
