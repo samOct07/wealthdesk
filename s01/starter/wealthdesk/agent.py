@@ -40,14 +40,7 @@ from .state import WealthDeskState
 
 def build_graph():
     """Build and compile the WealthDesk LangGraph graph."""
-
-    builder = StateGraph(WealthDeskState)
-    builder.add_node("respond", respond)
-    builder.add_edge(START, "respond")
-    builder.add_edge("respond", END)
-
-    return builder.compile()
-    # raise NotImplementedError("TODO 5: implement build_graph() in wealthdesk/agent.py")
+    raise NotImplementedError("TODO 5: implement build_graph() in wealthdesk/agent.py")
 
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.

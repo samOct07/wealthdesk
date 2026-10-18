@@ -159,3 +159,11 @@ pytest s01/tests/ s02/tests/ s03/tests/ -v
 
 Post in the WhatsApp group. Include: the error message, which script you were running,
 and which operating system you are on.
+
+
+deactivate
+python3.12 -m venv .venv-py312
+source .venv-py312/bin/activate
+python --version  # confirm it reports Python 3.12
+python -m pip install -r requirements.txt
+python data/ingest.py

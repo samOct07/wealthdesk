@@ -6,8 +6,7 @@ The shared state that flows through the LangGraph graph.
 Every node reads from this state and writes back a partial update.
 Only define the shape here -- no logic.
 """
-from operator import add
-from typing import Annotated, TypedDict
+from typing import TypedDict
 
 
 # ---------------------------------------------------------------------------
@@ -25,9 +24,7 @@ from typing import Annotated, TypedDict
 # ---------------------------------------------------------------------------
 
 class WealthDeskState(TypedDict):
-    customer_message : str
-    response : str
-    # history: Annotated[list[dict], add]
+    pass  # TODO 3: replace this line with the two field definitions
 
 
 # Guard: raises at import time if the fields haven't been defined yet.
