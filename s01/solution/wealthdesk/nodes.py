@@ -41,10 +41,12 @@ def respond(state: WealthDeskState) -> dict:
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(content=state["customer_message"]),
+        
     ]
 
     try:
         result = llm.invoke(messages)
+        print(f"[WealthDesk] LLM response: {result}")
         return {"response": result.content}
     except Exception as error:
         print(f"[WealthDesk] {error}")

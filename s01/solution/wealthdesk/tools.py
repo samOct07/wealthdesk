@@ -21,17 +21,17 @@ if not GROQ_API_KEY:
         "  Windows:  copy .env.example .env\n"
         "  Mac/Linux: cp .env.example .env"
     )
-llm = ChatGroq(
-    api_key=GROQ_API_KEY,
-    model=MODEL_NAME,
-    temperature=TEMPERATURE,
-    max_tokens=MAX_TOKENS,
-)
-
-# from langchain_ollama import ChatOllama
-
-# llm = ChatOllama(
-#     model="llama3.2:3b",
+# llm = ChatGroq(
+#     api_key=GROQ_API_KEY,
+#     model=MODEL_NAME,
 #     temperature=TEMPERATURE,
-#     num_predict=MAX_TOKENS,
+#     max_tokens=MAX_TOKENS,
 # )
+
+from langchain_ollama import ChatOllama
+
+llm = ChatOllama(
+    model="llama3.2:3b",
+    temperature=TEMPERATURE,
+    num_predict=MAX_TOKENS,
+)
