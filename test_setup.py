@@ -178,7 +178,7 @@ if groq_key and not groq_key.startswith("your_") and groq_key != "gsk_your_actua
         response = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[{"role": "user", "content": "Reply with exactly: READY"}],
-            max_tokens=200,   # gpt-oss-20b is a reasoning model -- needs room to think before replying
+            max_tokens=100,   # gpt-oss-20b is a reasoning model -- needs room to think before replying
         )
         reply = response.choices[0].message.content.strip()
         check(
