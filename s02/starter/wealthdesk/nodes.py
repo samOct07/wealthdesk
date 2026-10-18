@@ -50,5 +50,4 @@ from .tools import llm
 
 def respond(state: WealthDeskState) -> dict:
     """Call the LLM with full conversation history and return the updated state."""
-    
     raise NotImplementedError("TODO 2: implement respond() with history in wealthdesk/nodes.py")

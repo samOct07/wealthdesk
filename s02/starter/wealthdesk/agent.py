@@ -67,19 +67,16 @@ from .state import WealthDeskState
 # persistence (like run() below) pass their own checkpointer explicitly.
 #
 # The rest of build_graph() is identical to Session 1:
-# builder = StateGraph(WealthDeskState)
-# builder.add_node("respond", respond)
-# builder.add_edge(START, "respond")
-# builder.add_edge("respond", END)
+#   builder = StateGraph(WealthDeskState)
+#   builder.add_node("respond", respond)
+#   builder.add_edge(START, "respond")
+#   builder.add_edge("respond", END)
 #
 # ---------------------------------------------------------------------------
 
 def build_graph(checkpointer=None):
-    builder = StateGraph(WealthDeskState)
-    builder.add_node("respond", respond)
-    builder.add_edge(START, "respond")
-    builder.add_edge("respond", END)
-    return builder.compile(checkpointer=checkpointer)
+    """Build and compile the WealthDesk LangGraph graph."""
+    raise NotImplementedError("TODO 3: implement build_graph() with checkpointer in wealthdesk/agent.py")
 
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
