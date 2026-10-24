@@ -49,6 +49,26 @@ from .tools import llm
 # ---------------------------------------------------------------------------
 
 def respond(state: WealthDeskState) -> dict:
-    """Call the LLM with full conversation history and return the updated state."""
+    history = state.get("history", [])
+    messages = [SystemMessage(content=SYSTEM_PROMPT)]
+    for turn in history:
+        if turn["role"] == "user":
+            messages.append(HumanMessage(content=turn["content"]))
+        else:
+            messages.append(AIMessage(content=turn["content"]))
+    messages.append(HumanMessage(content=state["customer_message"]))
+
+    try:
+        result = llm.invoke(messages)
+        response_text = result.content
+        new_history = history + [
+            {"role": "user",      "content": state["customer_message"]},
+            {"role": "assistant", "content": response_text},
+        ]
+        return {"response": response_text, "history": new_history}
+    except Exception as error:
+        print(f"[WealthDesk] Error message: {str(error)}")
+        return {
+            "response": "I'm sorry, but I can't respond right now. Please try again shortly."
+        }
     
-    raise NotImplementedError("TODO 2: implement respond() with history in wealthdesk/nodes.py")

@@ -13,6 +13,19 @@
                 "PYTHONPATH": "${workspaceFolder}/s01/solution"
             },
             "justMyCode": true
+        },
+        {
+            "name": "Debug s02 solution agent",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "wealthdesk.agent",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/s02/solution",
+            "python": "${workspaceFolder}/.venv-py312/bin/python",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/s02/solution"
+            },
+            "justMyCode": true
         }
     ]
 }

@@ -4,6 +4,8 @@ MODEL_NAME  = "openai/gpt-oss-20b"
 TEMPERATURE = 0.3
 MAX_TOKENS  = 300
 
+LOCAL_LAMA_VERSION = "llama3.2:3b"
+
 SYSTEM_PROMPT = """You are WealthDesk, the AI banking assistant at Bharat National Bank (BNB).
 
 Your role is to help customers with questions about BNB's loan products, fixed deposits,

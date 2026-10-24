@@ -29,4 +29,4 @@ from typing import TypedDict
 class WealthDeskState(TypedDict):
     customer_message: str
     response:         str
-    history:          list[dict[str, str]] # TODO 1: add history field here
+    history:          list[dict[str, str]]

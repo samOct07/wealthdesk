@@ -21,12 +21,14 @@ from uuid import uuid4
 
 # If you see "AttributeError: JsonPlusSerializer has no attribute dumps", run:
 #   pip install "langgraph-checkpoint-sqlite>=3.0.0,<4.0"
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from .config import CHECKPOINT_DB
 from .nodes import respond
 from .state import WealthDeskState
+
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +85,7 @@ def build_graph(checkpointer=None):
 
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
-graph = build_graph()
+# graph = build_graph()
 
 
 # ---------------------------------------------------------------------------
@@ -118,12 +120,23 @@ def run() -> None:
     # TODO 4: open SQLite connection and build graph with SqliteSaver
     # TODO 4: create thread_id and config dict
 
+    conn   = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+    # _graph = build_graph(checkpointer=SqliteSaver(conn))
+    
+    # I want to use in memory saver from langgraph.checkpoint.memory to avoid sqlite3 database file creation
+    
+    _graph = build_graph(checkpointer=MemorySaver())
+
+    # _graph = build_graph()
+    thread_id = str(uuid4())
+    # thread_id = "b33b1a83-0266-477e-8089-6eb078e000e8" 
+    config    = {"configurable": {"thread_id": thread_id}}
+
     print("=" * 55)
     print("  WealthDesk | Bharat National Bank")
     print("  Type 'quit' to exit")
     print("=" * 55)
-    # TODO 4: print the first 8 chars of thread_id here so you can confirm
-    #         the session id in the terminal output
+    print(f"  Session ID: {thread_id[:8]}")
     print("=" * 55)
 
     while True:
@@ -139,9 +152,9 @@ def run() -> None:
             print("\nWealthDesk: Thank you for choosing Bharat National Bank. Goodbye!")
             break
 
-        # TODO 4: invoke _graph with config instead of graph without config
-        result = graph.invoke({"customer_message": user_input, "response": ""})
-        print(f"\nWealthDesk: {result['response']}")
+        #invoke _graph with config instead of graph without config
+        result = _graph.invoke({"customer_message": user_input, "response": ""}, config=config)
+what is         print(f"\nWealthDesk: {result['response']}")
 
 
 if __name__ == "__main__":
