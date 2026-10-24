@@ -11,7 +11,7 @@ import os
 
 from langchain_groq import ChatGroq
 
-from .config import MAX_TOKENS, MODEL_NAME, TEMPERATURE
+from .config import MAX_TOKENS, MODEL_NAME, TEMPERATURE, LOCAL_LAMA_VERSION
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
@@ -30,8 +30,9 @@ if not GROQ_API_KEY:
 
 from langchain_ollama import ChatOllama
 
+
 llm = ChatOllama(
-    model="llama3.2:3b",
+    model=LOCAL_LAMA_VERSION,
     temperature=TEMPERATURE,
     num_predict=MAX_TOKENS,
 )

@@ -46,10 +46,10 @@ def respond(state: WealthDeskState) -> dict:
 
     try:
         result = llm.invoke(messages)
-        print(f"[WealthDesk] LLM response: {result}")
+        # print(f"[WealthDesk] LLM response: {result}")
         return {"response": result.content}
     except Exception as error:
-        print(f"[WealthDesk] {error}")
+        print(f"[WealthDesk] Error message: {str(error)}")
         return {
             "response": "I'm sorry, but I can't respond right now. Please try again shortly."
         }
