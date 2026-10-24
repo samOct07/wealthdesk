@@ -121,14 +121,15 @@ def run() -> None:
     # TODO 4: create thread_id and config dict
 
     conn   = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
-    # _graph = build_graph(checkpointer=SqliteSaver(conn))
+    # SqliteSaver(conn) will persist the state to a local SQLite database file.
+    _graph = build_graph(checkpointer=SqliteSaver(conn))
     
-    # I want to use in memory saver from langgraph.checkpoint.memory to avoid sqlite3 database file creation
+    # In memory mode, the state is not persisted between runs. Use MemorySaver() for that.
+    # _graph = build_graph(checkpointer=MemorySaver())
     
-    _graph = build_graph(checkpointer=MemorySaver())
-
-    # _graph = build_graph()
     thread_id = str(uuid4())
+    
+    # Old thread_id for testing if value is persisted across runs. Uncomment to test.
     # thread_id = "b33b1a83-0266-477e-8089-6eb078e000e8" 
     config    = {"configurable": {"thread_id": thread_id}}
 
@@ -154,7 +155,7 @@ def run() -> None:
 
         #invoke _graph with config instead of graph without config
         result = _graph.invoke({"customer_message": user_input, "response": ""}, config=config)
-what is         print(f"\nWealthDesk: {result['response']}")
+        print(f"\nWealthDesk: {result['response']}")
 
 
 if __name__ == "__main__":
