@@ -30,8 +30,10 @@ s11/
 s12/app.py
 
 # Cohort 2 progressive release -- remove a line here before each session
-s03/
-s04/
+s03/solution/
+s03/tests/
+s04/solution/
+s04/tests/
 s05/
 s06/
 s07/
