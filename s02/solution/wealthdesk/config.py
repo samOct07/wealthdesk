@@ -35,5 +35,5 @@ Output format:
   Keep all responses under 150 words.
   Sign off as: WealthDesk | Bharat National Bank"""
 
-DATA_DIR      = Path(__file__).parent.parent.parent.parent / "data"
+DATA_DIR      = Path(__file__).parents[3] / "data"
 CHECKPOINT_DB = DATA_DIR / "checkpoints.db"

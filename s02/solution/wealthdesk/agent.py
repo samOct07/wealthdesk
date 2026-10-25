@@ -21,6 +21,7 @@ from uuid import uuid4
 
 # If you see "AttributeError: JsonPlusSerializer has no attribute dumps", run:
 #   pip install "langgraph-checkpoint-sqlite>=3.0.0,<4.0"
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
@@ -35,21 +36,21 @@ from .state import WealthDeskState
 # How the checkpointer works
 # ---------------------------------------------------------------------------
 # The checkpointer is LangGraph's persistence layer. It saves the entire
-# WealthDeskState (all fields including history) to SQLite after every
+# WealthDeskState (all fields including messages) to SQLite after every
 # graph.invoke() call, and restores it before the next one.
 #
 # Turn 1: checkpointer finds nothing for this thread_id → starts fresh
-#         respond() runs → returns updated history
+#         respond() runs → returns the assistant message
 #         checkpointer SAVES full state to SQLite
 #
 # Turn 2: checkpointer finds Turn 1 state → RESTORES it into WealthDeskState
-#         respond() runs with history already populated → LLM sees full context
+#         respond() runs with prior messages already populated → LLM sees full context
 #         checkpointer SAVES updated state to SQLite
 #
 # state.py declares WHAT exists (the schema).
 # The checkpointer handles WHERE it lives between turns (SQLite).
-# You need both: without the declaration LangGraph rejects the field;
-# without the checkpointer history vanishes after every invoke().
+# You need both: without MessagesState the message reducer is unavailable;
+# without the checkpointer messages vanish after every invoke().
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ def build_graph(checkpointer=None):
 
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
-# graph = build_graph()
+graph = build_graph()
 
 
 # ---------------------------------------------------------------------------
@@ -107,12 +108,12 @@ def build_graph(checkpointer=None):
 #
 #   3. Pass config to every graph.invoke() call:
 #        result = _graph.invoke(
-#            {"customer_message": user_input, "response": ""},
+#            {"messages": [HumanMessage(content=user_input)]},
 #            config=config,
 #        )
 #
-#      Notice there is no "history" key in the input dict. The checkpointer
-#      restores it automatically from the database before the node runs.
+#      The checkpointer restores the prior messages automatically before the
+#      node runs, and MessagesState appends this new HumanMessage.
 #
 # ---------------------------------------------------------------------------
 
@@ -132,7 +133,7 @@ def run() -> None:
     # Old thread_id for testing if value is persisted across runs. Uncomment to test.
     # thread_id = "b33b1a83-0266-477e-8089-6eb078e000e8" 
     config    = {"configurable": {"thread_id": thread_id}}
-
+    
     print("=" * 55)
     print("  WealthDesk | Bharat National Bank")
     print("  Type 'quit' to exit")
@@ -153,8 +154,10 @@ def run() -> None:
             print("\nWealthDesk: Thank you for choosing Bharat National Bank. Goodbye!")
             break
 
-        #invoke _graph with config instead of graph without config
-        result = _graph.invoke({"customer_message": user_input, "response": ""}, config=config)
+        result = _graph.invoke(
+            {"messages": [HumanMessage(content=user_input)]},
+            config=config,
+        )
         print(f"\nWealthDesk: {result['response']}")
 
 
