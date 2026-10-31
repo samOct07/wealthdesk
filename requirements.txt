@@ -17,7 +17,7 @@ langgraph>=1.0.0,<2.0
 langgraph-checkpoint-sqlite>=3.0.0,<4.0   # SqliteSaver for multi-turn memory (US-02, Session 2); 3.x required for langgraph 1.2+
 aiosqlite>=0.19.0,<1.0                    # async SQLite support required by langgraph-checkpoint-sqlite
 langgraph-cli[inmem]<2.0                  # langgraph dev -- local server + LangGraph Studio graph visualiser
-langgraph-api>=0.11.0,<1.0                # Studio in-app traces require session-name tracing support
+langgraph-api>=0.11.0,<2.0               # Studio tracing support (0.11.0+ required to see traces inside Studio)
 langchain>=0.3.0,<2.0
 langchain-core>=0.3.0,<2.0
 langchain-text-splitters>=0.3.0,<2.0      # RecursiveCharacterTextSplitter (split from langchain in 0.3)
@@ -29,7 +29,7 @@ pydantic>=2.0.0,<3.0                      # state validation, structured outputs
 langchain-ollama>=0.2.0,<2.0             # ChatOllama -- classroom fallback if Groq is unreachable (S01 instructor notes)
 
 # --- Session 4+: Vector store and RAG ---
-chromadb>=0.5.0,<1.0
+chromadb>=0.5.0,<2.0
 langchain-chroma>=0.1.4,<2.0
 langchain-huggingface>=0.0.3,<2.0        # free local embeddings (all-MiniLM-L6-v2)
 sentence-transformers>=2.7.0,<4.0        # backing library for HuggingFaceEmbeddings

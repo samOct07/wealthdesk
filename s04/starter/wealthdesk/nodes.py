@@ -13,6 +13,7 @@ of SIMPLE / COMPLEX / OUT_OF_SCOPE (3-way). The respond() node handles escalatio
 internally when no docs are retrieved.
 """
 from langchain_chroma import Chroma
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -152,6 +153,7 @@ def retrieve_docs(state: WealthDeskState) -> dict:
 # Two changes from Session 3:
 #
 #   1. Early-exit if no docs were retrieved:
+#        history   = state.get("history", [])
 #        retrieved = state.get("retrieved_docs", [])
 #        if not retrieved:
 #            new_history = history + [

@@ -92,13 +92,30 @@ _INGEST_INJECTION_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
 ]]
 
 
+# Metadata map: filename → doc_type and product tags.
+# Used for metadata filtering in the hybrid retriever (solutionhybridsearch).
+# All sessions share this vectorstore; existing sessions ignore these extra fields.
+DOCUMENT_METADATA: dict[str, dict] = {
+    "home_loan_guide.md":   {"doc_type": "guide",  "product": "home_loan"},
+    "personal_loan_guide.md": {"doc_type": "guide", "product": "personal_loan"},
+    "car_loan_guide.md":    {"doc_type": "guide",  "product": "car_loan"},
+    "fd_guide.md":          {"doc_type": "guide",  "product": "fd"},
+    "faq.md":               {"doc_type": "faq",    "product": "general"},
+    "bnb_policy.md":        {"doc_type": "policy", "product": "general"},
+}
+
+
 def load_documents() -> List[Document]:
     """Load every .md file in the documents directory.
 
-    Each document is tagged with its filename in metadata["source"].
-    That tag appears in LangSmith traces (from Session 4 onward, when basic
-    tracing is introduced with US-03) so you can see exactly which document
-    contributed to each agent response.
+    Each document is tagged with:
+      source   : filename — appears in LangSmith traces so you can see which
+                 document contributed to each agent response.
+      doc_type : "guide" | "faq" | "policy" | "email_template" — used by the
+                 hybrid retriever's metadata filter to restrict retrieval to the
+                 right document category (e.g. only guides for customer queries).
+      product  : "home_loan" | "car_loan" | "fd" | "loan" | "general" — used to
+                 narrow retrieval further (e.g. only car_loan docs for car queries).
     """
     if not DOCS_DIR.exists():
         print(f"Error: Documents directory not found at {DOCS_DIR}", file=sys.stderr)
@@ -116,9 +133,10 @@ def load_documents() -> List[Document]:
         if not text.strip():
             print(f"  Warning: {path.name} is empty -- skipping", file=sys.stderr)
             continue
-        doc = Document(page_content=text, metadata={"source": path.name})
+        extra = DOCUMENT_METADATA.get(path.name, {"doc_type": "other", "product": "general"})
+        doc = Document(page_content=text, metadata={"source": path.name, **extra})
         docs.append(doc)
-        print(f"  Loaded: {path.name:40s} ({len(text):,} chars)")
+        print(f"  Loaded: {path.name:40s} ({len(text):,} chars)  [{extra['doc_type']}]")
 
     return docs
 
@@ -234,7 +252,7 @@ def main() -> None:
 
     print(f"\nDone. {len(chunks)} chunks stored at {VECTOR_DIR}")
     print("Run 'python data/ingest.py' again after adding or editing documents.")
-    print("\nSetup complete. Run 'python s01/solution/main.py' to start WealthDesk.")
+    print("\nSetup complete. Run 'python -m wealthdesk.agent' from inside s04/starter/ or s04/solution/ to start WealthDesk.")
 
 
 if __name__ == "__main__":

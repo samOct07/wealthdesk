@@ -24,5 +24,6 @@ classifier_llm = ChatGroq(
     api_key=GROQ_API_KEY,
     model=MODEL_NAME,
     temperature=0.0,
-    max_tokens=100,
+    max_tokens=200,
+    reasoning_effort="low",
 )
