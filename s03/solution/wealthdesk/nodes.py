@@ -89,7 +89,7 @@ def classify(state: WealthDeskState) -> dict:
     try:
         result     = classifier_llm.invoke(messages)
         query_type = result.content.strip().upper()
-        if query_type not in {"SIMPLE", "COMPLEX", "OUT_OF_SCOPE"}:
+        if query_type not in {"SIMPLE", "COMPLEX", "OUT_OF_SCOPE", "HUMAN"}:
             query_type = "SIMPLE"
     except Exception as e:
         print(f"[WealthDesk] Classification error: {e}")
@@ -123,12 +123,15 @@ def classify(state: WealthDeskState) -> dict:
 def route_query(state: WealthDeskState) -> str:
     """Read query_type and return the name of the next node."""
     qt = state.get("query_type", "SIMPLE")
-    if qt == "COMPLEX":
-        return "escalate"
-    elif qt == "OUT_OF_SCOPE":
-        return "decline"
-    else:
-        return "respond"
+    match qt:
+        case "COMPLEX":
+            return "escalate"
+        case "OUT_OF_SCOPE":
+            return "decline"
+        case "HUMAN":
+            return "transfer"
+        case _:
+            return "respond"
 
 
 def respond(state: WealthDeskState) -> dict:
@@ -172,3 +175,11 @@ def decline(state: WealthDeskState) -> dict:
         {"role": "assistant", "content": DECLINE_RESPONSE},
     ]
     return {"response": DECLINE_RESPONSE, "history": new_history}
+
+def transfer(state: WealthDeskState) -> dict:
+    """Handle HUMAN queries with a canned transfer message. No LLM call."""
+    new_history = state.get("history", []) + [
+        {"role": "user",      "content": state["customer_message"]},
+        {"role": "assistant", "content": "I am transferring you to a BNB Relationship Manager."}
+    ]
+    return {"response": "I am transferring you to a BNB Relationship Manager.", "history": new_history}

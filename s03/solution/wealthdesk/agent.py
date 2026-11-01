@@ -16,6 +16,7 @@ What is new in Session 3:
   - add_conditional_edges() replaces the single add_edge out of the entry point
   - route_query (from nodes.py) is passed as the routing function
 """
+
 import sqlite3
 from uuid import uuid4
 
@@ -25,9 +26,8 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph import END, START, StateGraph
 
 from .config import CHECKPOINT_DB
-from .nodes import classify, decline, escalate, respond, route_query
+from .nodes import classify, decline, escalate, respond, route_query, transfer
 from .state import WealthDeskState
-
 
 # ---------------------------------------------------------------------------
 # TODO 4 of 4 -- implement build_graph()
@@ -71,24 +71,32 @@ from .state import WealthDeskState
 #
 # ---------------------------------------------------------------------------
 
+
 def build_graph(checkpointer=None):
     """Build and compile the WealthDesk LangGraph graph."""
     builder = StateGraph(WealthDeskState)
     builder.add_node("classify", classify)
-    builder.add_node("respond",  respond)
+    builder.add_node("respond", respond)
     builder.add_node("escalate", escalate)
-    builder.add_node("decline",  decline)
+    builder.add_node("decline", decline)
+    builder.add_node("transfer", transfer)
 
     builder.add_edge(START, "classify")
-    builder.add_conditional_edges("classify", route_query, {
-        "respond":  "respond",
-        "escalate": "escalate",
-        "decline":  "decline",
-    })
+    builder.add_conditional_edges(
+        "classify",
+        route_query,
+        {
+            "respond": "respond",
+            "escalate": "escalate",
+            "decline": "decline",
+            "transfer": "transfer",
+        },
+    )
 
-    builder.add_edge("respond",  END)
+    builder.add_edge("respond", END)
     builder.add_edge("escalate", END)
-    builder.add_edge("decline",  END)
+    builder.add_edge("decline", END)
+    builder.add_edge("transfer", END)
 
     return builder.compile(checkpointer=checkpointer)
 
@@ -97,10 +105,10 @@ def build_graph(checkpointer=None):
 
 
 def run() -> None:
-    conn      = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
-    _graph    = build_graph(checkpointer=SqliteSaver(conn))
+    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+    _graph = build_graph(checkpointer=SqliteSaver(conn))
     thread_id = str(uuid4())
-    config    = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}}
 
     print("=" * 55)
     print("  WealthDesk | Bharat National Bank")

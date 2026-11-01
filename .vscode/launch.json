@@ -1,45 +1,44 @@
 {
     "version": "0.2.0",
     "configurations": [
-
         {
-            "name": "Debug s01 solution agent",
+            "name": "Debug session solution agent",
             "type": "debugpy",
             "request": "launch",
             "module": "wealthdesk.agent",
             "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/s01/solution",
+            "cwd": "${workspaceFolder}/s${input:sessionNumber}/solution",
             "python": "${workspaceFolder}/.venv-py312/bin/python",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/s01/solution"
+                "PYTHONPATH": "${workspaceFolder}/s${input:sessionNumber}/solution"
             },
             "justMyCode": true
-        },
+        }
+    ],
+    "inputs": [
         {
-            "name": "Debug s02 solution agent",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "wealthdesk.agent",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/s02/solution",
-            "python": "${workspaceFolder}/.venv-py312/bin/python",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/s02/solution"
-            },
-            "justMyCode": true
-        },
-        {
-            "name": "Debug s03 solution agent",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "wealthdesk.agent",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}/s03/solution",
-            "python": "${workspaceFolder}/.venv-py312/bin/python",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/s03/solution"
-            },
-            "justMyCode": true
+            "id": "sessionNumber",
+            "type": "pickString",
+            "description": "Choose a session (s01-s16)",
+            "options": [
+                "01",
+                "02",
+                "03",
+                "04",
+                "05",
+                "06",
+                "07",
+                "08",
+                "09",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15",
+                "16"
+            ],
+            "default": "04"
         }
     ]
 }

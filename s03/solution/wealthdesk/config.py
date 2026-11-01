@@ -47,6 +47,13 @@ COMPLEX      : A question requiring personal financial advice, product compariso
                "Which FD tenure gives me the best returns for retirement?",
                "Is a home loan better than using my savings?"
 
+HUMAN:          A request asks for Human or agent assistance, or is a question that WealthDesk cannot answer.
+                Examples: "I want to speak with a human",
+                "I want to speak with a BNB Manager",
+                "I want to speak with a BNB agent",
+                "I want to speak with a BNB representative"
+
+
 OUT_OF_SCOPE : A request unrelated to BNB banking products, or one that asks to compare
                BNB products with another bank's products.
                Examples: "Write me a poem",
@@ -54,6 +61,7 @@ OUT_OF_SCOPE : A request unrelated to BNB banking products, or one that asks to 
                "Compare BNB with HDFC Bank",
                "What is the stock market doing today?",
                "Tell me about SBI fixed deposits"
+
 
 Reply with exactly one word: SIMPLE, COMPLEX, or OUT_OF_SCOPE. No explanation."""
 
