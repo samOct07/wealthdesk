@@ -16,6 +16,7 @@ What is new in Session 4:
   - route_query is now 2-way (IN_SCOPE / OUT_OF_SCOPE)
   - respond() uses retrieved chunks to answer from policy documents
 """
+
 import sqlite3
 from uuid import uuid4
 
@@ -25,7 +26,6 @@ from langgraph.graph import END, START, StateGraph
 from .config import CHECKPOINT_DB
 from .nodes import classify, decline, respond, retrieve_docs, route_query
 from .state import WealthDeskState
-
 
 # ---------------------------------------------------------------------------
 # TODO 4 of 4 -- implement build_graph()
@@ -65,10 +65,37 @@ from .state import WealthDeskState
 #
 # ---------------------------------------------------------------------------
 
+
 def build_graph(checkpointer=None):
-    """Build and compile the WealthDesk LangGraph graph."""
-    # TODO 4: implement build_graph() -- see instructions above
-    raise NotImplementedError("TODO 4: implement build_graph() in wealthdesk/agent.py")
+    builder = StateGraph(WealthDeskState)
+
+    # Register nodes
+    builder.add_node("classify", classify)
+    builder.add_node("retrieve_docs", retrieve_docs)
+    builder.add_node("respond", respond)
+    builder.add_node("decline", decline)
+
+    # Set entry point
+    builder.add_edge(START, "classify")
+
+    # Conditional edge from classify
+    builder.add_conditional_edges(
+        "classify",
+        route_query,
+        {
+            "retrieve_docs": "retrieve_docs",
+            "decline": "decline",
+        },
+    )
+
+    # Wire retrieve_docs → respond
+    builder.add_edge("retrieve_docs", "respond")
+
+    # Connect terminal nodes to END
+    builder.add_edge("respond", END)
+    builder.add_edge("decline", END)
+
+    return builder.compile(checkpointer=checkpointer)
 
 
 # Module-level graph instance required by langgraph.json for LangGraph Studio.
@@ -77,10 +104,11 @@ graph = build_graph()
 
 def run() -> None:
     import os
-    conn      = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
-    _graph    = build_graph(checkpointer=SqliteSaver(conn))
+
+    conn = sqlite3.connect(str(CHECKPOINT_DB), check_same_thread=False)
+    _graph = build_graph(checkpointer=SqliteSaver(conn))
     thread_id = str(uuid4())
-    config    = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}}
 
     print("=" * 55)
     print("  WealthDesk | Bharat National Bank")
@@ -107,11 +135,13 @@ def run() -> None:
             config=config,
         )
         route = result.get("query_type", "?")
-        docs  = result.get("retrieved_docs", [])
+        docs = result.get("retrieved_docs", [])
         print(f"\n[Routed: {route}]", end="")
         if docs:
             sources = {d.split("]\n")[0].lstrip("[") for d in docs if "]\n" in d}
-            print(f"  [Retrieved {len(docs)} chunk(s) from: {', '.join(sorted(sources))}]")
+            print(
+                f"  [Retrieved {len(docs)} chunk(s) from: {', '.join(sorted(sources))}]"
+            )
         else:
             print()
         print(f"\nWealthDesk: {result['response']}")
