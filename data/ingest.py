@@ -99,6 +99,7 @@ DOCUMENT_METADATA: dict[str, dict] = {
     "home_loan_guide.md":   {"doc_type": "guide",  "product": "home_loan"},
     "personal_loan_guide.md": {"doc_type": "guide", "product": "personal_loan"},
     "car_loan_guide.md":    {"doc_type": "guide",  "product": "car_loan"},
+    "gold_loan_guide.md":   {"doc_type": "guide",  "product": "gold_loan"},
     "fd_guide.md":          {"doc_type": "guide",  "product": "fd"},
     "faq.md":               {"doc_type": "faq",    "product": "general"},
     "bnb_policy.md":        {"doc_type": "policy", "product": "general"},
@@ -114,7 +115,7 @@ def load_documents() -> List[Document]:
       doc_type : "guide" | "faq" | "policy" | "email_template" — used by the
                  hybrid retriever's metadata filter to restrict retrieval to the
                  right document category (e.g. only guides for customer queries).
-      product  : "home_loan" | "car_loan" | "fd" | "loan" | "general" — used to
+      product  : "home_loan" | "personal_loan" | "car_loan" | "gold_loan" | "fd" | "general" — used to
                  narrow retrieval further (e.g. only car_loan docs for car queries).
     """
     if not DOCS_DIR.exists():
