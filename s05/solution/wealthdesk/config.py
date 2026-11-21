@@ -8,17 +8,13 @@ from pathlib import Path
 # We use openai/gpt-oss-20b because it produces OpenAI-compatible JSON tool calls reliably.
 # Respond LLM — both models support tool calling via langchain-groq.
 # If one hits Groq rate limits mid-session, comment it out and uncomment the other.
-MODEL_NAME = "openai/gpt-oss-120b"  # primary: higher daily token limit
+MODEL_NAME        = "openai/gpt-oss-120b"  # primary: higher daily token limit
 # MODEL_NAME      = "openai/gpt-oss-20b"   # fallback: 200k tokens/day ceiling
-CLASSIFIER_MODEL = (
-    "openai/gpt-oss-20b"  # single-word classifier; no tool calling needed
-)
+CLASSIFIER_MODEL  = "openai/gpt-oss-20b"    # single-word classifier; no tool calling needed
 TEMPERATURE = 0.3
-MAX_TOKENS = 600
+MAX_TOKENS  = 600
 CLASSIFIER_TEMPERATURE = 0.0
-CLASSIFIER_MAX_TOKENS = (
-    200  # openai/gpt-oss-* needs ≥200 tokens to reliably produce output
-)
+CLASSIFIER_MAX_TOKENS  = 200  # openai/gpt-oss-* needs ≥200 tokens to reliably produce output
 
 SYSTEM_PROMPT = """You are WealthDesk, the AI banking assistant at Bharat National Bank (BNB).
 
@@ -89,10 +85,10 @@ DECLINE_RESPONSE = (
     "WealthDesk | Bharat National Bank"
 )
 
-DATA_DIR = Path(__file__).parents[3] / "data"
-DB_PATH = DATA_DIR / "bnb_data.db"
-CHECKPOINT_DB = DATA_DIR / "checkpoints.db"
+DATA_DIR        = Path(__file__).parent.parent.parent.parent / "data"
+DB_PATH         = DATA_DIR / "bnb_data.db"
+CHECKPOINT_DB   = DATA_DIR / "checkpoints.db"
 VECTORSTORE_DIR = DATA_DIR / "vectorstore"
-EMBED_MODEL = "all-MiniLM-L6-v2"
-RETRIEVAL_K = 3
+EMBED_MODEL               = "all-MiniLM-L6-v2"
+RETRIEVAL_K               = 3
 RETRIEVAL_SCORE_THRESHOLD = 0.3
