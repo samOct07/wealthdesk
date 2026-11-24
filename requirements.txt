@@ -9,8 +9,8 @@
 # major versions (langchain ecosystem, pydantic, openai). This prevents pip
 # from silently resolving to an incompatible future release.
 #
-# The langchain packages are capped at <2.0 (the 1.x line): langgraph 1.x and
-# langchain-mcp-adapters 0.3+ both require langchain-core 1.x.
+# The langchain packages are capped at <2.0 (the 1.x line): langgraph 1.x
+# requires langchain-core 1.x. langchain[mcp] requires langchain>=1.4.0.
 
 # --- Sessions 1-17: Core LangGraph stack ---
 langgraph>=1.0.0,<2.0
@@ -31,6 +31,10 @@ langchain-ollama>=0.2.0,<2.0             # ChatOllama -- classroom fallback if G
 # --- Session 4+: Vector store and RAG ---
 chromadb>=0.5.0,<2.0
 langchain-chroma>=0.1.4,<2.0
+# chromadb 1.x pulls in opentelemetry; pin both together to prevent version mismatch
+# (ImportError: cannot import name '_ExtendedAttributes' if api < sdk)
+opentelemetry-api>=1.28.0
+opentelemetry-sdk>=1.28.0
 langchain-huggingface>=0.0.3,<2.0        # free local embeddings (all-MiniLM-L6-v2)
 sentence-transformers>=2.7.0,<4.0        # backing library for HuggingFaceEmbeddings
 
@@ -42,10 +46,13 @@ langchain-openai>=0.1.0,<2.0
 langsmith>=0.1.0,<2.0
 
 # --- Session 7+: MCP (Model Context Protocol) ---
-mcp>=1.0.0,<2.0
+# mcp 2.x is required by fastmcp 4.x (pulled in by langchain[mcp]>=1.4.0).
+# mcp_server.py uses `from fastmcp import FastMCP` (fastmcp standalone, not mcp.server.fastmcp).
+mcp>=2.0.0,<3.0
+fastmcp>=4.0.0,<5.0
 
-# --- Session 8+: MCP agent tool loading ---
-langchain-mcp-adapters>=0.3.0,<2.0
+# --- Session 8+: MCP agent tool loading (langchain[mcp] ≥1.4.0, Sep 2026) ---
+langchain[mcp]>=1.4.0,<2.0
 
 # --- Session 13+: Web UI ---
 streamlit>=1.35.0,<2.0

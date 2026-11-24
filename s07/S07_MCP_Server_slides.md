@@ -170,12 +170,25 @@ Python function + docstring + type hints
 ```
 People often wonder "where does the schema come from?" — this diagram shows the full chain.
 
+**FastMCP's three roles — no more, no less:**
+
+| Role | When | What it does |
+|------|------|--------------|
+| ① REGISTER | At import time | Reads `@mcp.tool()`, builds JSON Schema from docstring + type hints |
+| ② ADVERTISE | On `tools/list` request | Returns the schema to any client that asks |
+| ③ ROUTE | On `tools/call` request | Finds the Python function by name, calls it, returns the result |
+
+**Key distinction callout:**
+FastMCP never decides which tool to call — that is the LLM's job.
+FastMCP is the waiter. The LLM reads the menu and orders. FastMCP takes the order to the kitchen (your Python function) and brings back the result.
+
 **Instructor note:**
 [5 min] Show the MCP Inspector UI on screen while explaining each concept.
 - Point to the left panel (tool list) while explaining SERVER — the server advertised these.
 - Point to the schema panel while explaining SCHEMA — FastMCP built this from the Python type hint.
 - Point to the Run button while explaining CLIENT — calling `call_tool()`.
-The visual reinforcement makes these abstract concepts concrete. Don't go deeper than this — the code walkthrough covers implementation.
+
+For the FastMCP three roles: use the waiter analogy when a participant asks "so what does FastMCP actually do?" — it lands faster than the technical explanation. The key insight to reinforce: "FastMCP never decides which tool to call. Claude reads the menu and orders. FastMCP is just the waiter." This distinction matters in S08 when the agent calls tools — students sometimes confuse FastMCP's routing with the LLM's decision-making.
 
 ---
 
@@ -437,8 +450,10 @@ npx @modelcontextprotocol/inspector .venv\Scripts\python.exe s07/starter/mcp_ser
 Step 1 — Tool list panel (left):
 `query_rates` and `query_branch` appear with their descriptions (from the docstring). "The Inspector just called `list_tools()` on your server. This is exactly what the WealthDesk agent will call at startup in Session 8."
 
-Step 2 — Schema view:
-Click `query_rates`. The input schema shows: `product_type`, type `string`, default `"all"`. "FastMCP generated this from your Python type hint `str = "all"`. No extra code. The client now knows what to pass."
+Step 2 — Schema view (now rendered as a form in current Inspector):
+Click `query_rates`. The current Inspector UI does not show a separate "schema panel" — instead it renders the schema as a form: the description from your docstring appears at the top, and the `product_type` parameter appears as a pre-filled text field with default `"all"`. **This IS the schema** — FastMCP generated it from your Python type hint `str = "all"` and Inspector rendered it as a UI. Same information, different presentation.
+
+Say: *"The description at the top — that came from your docstring. The field labelled `product_type` with default `all` — that came from `product_type: str = 'all'` in your type hint. FastMCP generated all of this. You wrote no JSON."*
 
 Step 3 — Call `query_rates(product_type="loan")`:
 Fill in `product_type: loan`, click Run. Real BNB rate data appears.
@@ -466,6 +481,8 @@ Answer: add one `@mcp.tool()` function to `mcp_server.py`. Restart the server. I
 
 **Instructor note:**
 [10 min] Share screen with the Inspector browser tab open. Walk slowly — participants need to map what they see to what they built. Step 1 is the moment of recognition: "I can see my docstring as the tool description." Step 3 is the payoff: real data from their implementation. For Step 4, wait for their answers before confirming — the point is they derive the answer from the architecture, not from being told.
+
+**Inspector UI note (current version):** The current Inspector no longer has a separate "Schema view" panel. When a participant asks where the schema is, point to the form itself: the description text at the top and the labelled input fields ARE the schema rendered as a UI. The slide's "Schema view" label refers to this same section. Say: "What you're looking at is the JSON Schema FastMCP built from your Python type hints — Inspector is just rendering it as a form instead of raw JSON."
 
 ---
 
@@ -526,7 +543,108 @@ Then in VS Code:
 
 ---
 
-## Slide 11 — Tests and Debrief
+## Slide 11 — MCP Exposes Three Types of Things
+
+**Heading:** MCP exposes three types of things
+
+**Sub-heading eyebrow:** THE PROTOCOL
+
+**Three-column card layout:**
+
+**TOOLS** (highlighted — this course):
+Functions the LLM decides to call at runtime.
+- `@mcp.tool()`
+- Used in this course: S07 (build server), S08 (agent as client)
+- Examples: `query_rates()`, `query_branch()`
+
+**RESOURCES**:
+Read-only data the client fetches directly — no LLM decision needed.
+- `@mcp.resource("url://...")`
+- Not used in this course.
+- Examples:
+  - Filesystem MCP: `file:///project/main.py`
+  - PostgreSQL MCP: DB schema (tables + columns) as a resource
+  - Hypothetical doc server: `docs://bnb/sebi-rules`
+
+**PROMPTS**:
+Reusable prompt templates the server packages for clients to request by name.
+- `@mcp.prompt()`
+- Not used in this course. Least-adopted primitive in current MCP servers.
+- Illustrative examples:
+  - `review-code` — takes a file, returns review prompt
+  - `escalation-response` — takes ticket, returns formal response template
+
+**Callout at bottom:**
+> This course uses Tools only. Most production MCP servers today implement Tools heavily and Resources partially. Prompts is the least-used primitive.
+
+**Instructor note:**
+[3 min] Use this as a "zoom out" moment after the hands-on. "You've built Tools — the most important type. Here's the full picture so you know what else exists." Don't go deeper on Resources or Prompts unless students ask. The next slide shows a quick Resources example if curiosity is high.
+
+---
+
+## Slide 12 — Resources in Action: WealthDesk Example
+
+**Heading:** Resources: client fetches, LLM reads
+
+**Sub-heading eyebrow:** RESOURCES DEMO (OPTIONAL — run if time allows)
+
+**Key distinction card:**
+```
+TOOL:     LLM decides → emits tool_call → agent executes → result back to LLM
+RESOURCE: Agent code decides → fetches directly → injects into prompt → LLM reads
+```
+
+**Two-column layout:**
+
+Left — Server side (5 lines added to `mcp_server.py`):
+```python
+@mcp.resource("docs://bnb/sebi-rules")
+def sebi_rules() -> str:
+    """SEBI compliance rules for WealthDesk responses."""
+    return (
+        "BANNED PHRASES: guaranteed returns, risk-free, "
+        "assured profit, no risk\n"
+        "RATE TOLERANCE: only cite rates present in the database\n"
+        "SOURCE: SEBI circular 2024-11-01"
+    )
+```
+
+Right — Agent side (fetch inside a node):
+```python
+# In nodes.py — compliance node reads rules from MCP
+async def _fetch_sebi_rules() -> str:
+    async with MCPAdapter(_mcp_config) as adapter:
+        content = await adapter.read_resource(
+            "docs://bnb/sebi-rules"
+        )
+        return content.contents[0].text
+
+def check_compliance(state):
+    rules = asyncio.run(_fetch_sebi_rules())
+    # parse rules, check response against them...
+```
+
+**What this buys you (annotation card):**
+- Rules live in the MCP server, not the agent repo — a compliance team can update them without touching Python code
+- `adapter.list_resources()` lets a client discover all available resources, just like `list_tools()`
+- The LLM never "decides" to fetch a resource — the agent code does it proactively
+
+**Why we don't use it in this course:**
+The SEBI banned phrases are short and stable — keeping them in `config.py` is simpler and faster. Resources become valuable when the data changes at runtime, is owned by a different team, or grows beyond what belongs in a config file.
+
+**Inspector: viewing resources**
+```
+npx @modelcontextprotocol/inspector python s07/solution/mcp_server.py
+# → Resources tab (next to Tools) shows "docs://bnb/sebi-rules"
+# → Click to see the content returned by sebi_rules()
+```
+
+**Instructor note:**
+[5 min — optional] Only run this slide if the class asks "what about the other two types?" or if you have 5 minutes to spare. The key teaching point: "The LLM never sees a resource URI the way it sees a tool name. The agent code fetches it, extracts the text, and places it in a system message. From the LLM's perspective, it's just more context — it has no idea it came from a resource." If anyone has a PostgreSQL or filesystem MCP server running, the same pattern applies — the resources show up in Inspector under a Resources tab.
+
+---
+
+## Slide 13 — Tests and Debrief
 
 **Heading:** What the tests verify
 
@@ -569,7 +687,7 @@ The `r > 0` guard handles the edge case where `rate=0` (avoid division by zero).
 
 ---
 
-## Slide 12 — Preview Session 8
+## Slide 14 — Preview Session 8
 
 **Heading:** What changes in Session 8
 
@@ -594,7 +712,7 @@ Right — Session 8 — Agent uses MCP server:
 # agent.py — graph topology unchanged
 # Only tool-wiring changes
 
-from langchain_mcp_adapters.client import ...
+from langchain.mcp import MCPAdapter
 
 # Connects to mcp_server.py at startup
 # Discovers tools via list_tools()
@@ -632,7 +750,7 @@ Graph topology, `classify → retrieve → respond` flow, system prompts, LangSm
 
 ---
 
-## Slide 13 — Quick Reference
+## Slide 15 — Quick Reference
 
 **Heading:** Quick Reference — Leave on screen during hands-on
 

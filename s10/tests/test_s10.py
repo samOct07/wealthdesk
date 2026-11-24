@@ -206,14 +206,13 @@ class TestRatesAgent:
 
     def test_tool_calls_dispatched(self):
         tool_call = {"name": "query_rates", "args": {"product_type": "loan"}, "id": "tc1"}
-        first_response = MagicMock(content="", tool_calls=[tool_call])
-        second_response = MagicMock(content="8.5% p.a.", tool_calls=[])
+        first_response  = MagicMock(content="",         tool_calls=[tool_call], invalid_tool_calls=[])
+        second_response = MagicMock(content="8.5% p.a.", tool_calls=[],         invalid_tool_calls=[])
 
         with patch.object(_nodes, "llm_with_tools") as mock_tools_llm, \
-             patch.object(_nodes, "llm") as mock_llm, \
              patch.object(_nodes, "_run_tool", return_value="Home Loan: 8.5%") as mock_tool:
-            mock_tools_llm.invoke.return_value = first_response
-            mock_llm.invoke.return_value = second_response
+            # side_effect: first invoke returns tool request, second returns final answer
+            mock_tools_llm.invoke.side_effect = [first_response, second_response]
 
             agent = create_rates_agent()
             result = agent.invoke({

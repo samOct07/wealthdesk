@@ -47,15 +47,25 @@ from .config import (
     EMBED_MODEL,
     ESCALATE_RESPONSE,
     RETRIEVAL_K,
+    RETRIEVAL_SCORE_THRESHOLD,
     SAFE_COMPLIANCE_RESPONSE,
     SEBI_BANNED_PHRASES,
     SYSTEM_PROMPT,
     VECTORSTORE_DIR,
 )
 from .state import WealthDeskState
-from .tools import _run_tool, classifier_llm, llm, llm_with_tools
+from .tools import _run_tool, classifier_llm, llm_with_tools
 
 vectorstore = None
+
+BLOCKLIST = [
+    "ignore all previous",
+    "forget everything",
+    "you are now",
+    "disregard your system",
+    "act as",
+    "jailbreak",
+]
 
 # Compile the banned-phrase list into a single regex automaton at import time.
 # O(M) per check regardless of how many phrases are listed (vs O(N×M) loops).
@@ -204,6 +214,14 @@ def check_compliance(state: WealthDeskState) -> dict:
 
 
 def classify(state: WealthDeskState) -> dict:
+    msg = state["customer_message"].strip()
+
+    if not msg or len(msg) < 3 or len(msg) > 500:
+        return {"query_type": "OUT_OF_SCOPE", "retrieved_docs": []}
+
+    if any(phrase in msg.lower() for phrase in BLOCKLIST):
+        return {"query_type": "OUT_OF_SCOPE", "retrieved_docs": []}
+
     messages = [
         SystemMessage(content=CLASSIFY_SYSTEM),
         HumanMessage(content=state["customer_message"]),
@@ -211,8 +229,9 @@ def classify(state: WealthDeskState) -> dict:
     try:
         result = classifier_llm.invoke(messages)
         raw    = result.content.strip().upper()
-        # Models sometimes return "OUT OF SCOPE" (space) or extra text.
-        # Substring matching is more robust than an exact set check.
+        # Models sometimes return "OUT OF SCOPE" (space) instead of "OUT_OF_SCOPE"
+        # (underscore), or include extra explanation text. Substring matching is
+        # more robust than an exact set check.
         if "OUT_OF_SCOPE" in raw or "OUT OF SCOPE" in raw:
             query_type = "OUT_OF_SCOPE"
         elif "COMPLEX" in raw:
@@ -225,7 +244,8 @@ def classify(state: WealthDeskState) -> dict:
     except Exception as e:
         print(f"[WealthDesk] Classification error: {e}")
         query_type = "SIMPLE"
-    return {"query_type": query_type}
+    # Reset retrieved_docs so chunks from a previous turn never leak into this one.
+    return {"query_type": query_type, "retrieved_docs": []}
 
 
 def retrieve_docs(state: WealthDeskState) -> dict:
@@ -233,11 +253,21 @@ def retrieve_docs(state: WealthDeskState) -> dict:
     if vectorstore is None:
         return {"retrieved_docs": []}
     try:
-        docs      = vectorstore.similarity_search(state["customer_message"], k=RETRIEVAL_K)
-        retrieved = [
-            f"[{doc.metadata.get('source', 'unknown')}]\n{doc.page_content}"
-            for doc in docs
-        ]
+        results   = vectorstore.similarity_search_with_relevance_scores(
+            state["customer_message"], k=RETRIEVAL_K
+        )
+        retrieved = []
+        for doc, score in results:
+            if score >= RETRIEVAL_SCORE_THRESHOLD:
+                retrieved.append(
+                    f"[{doc.metadata.get('source', 'unknown')}]\n{doc.page_content}"
+                )
+            else:
+                print(
+                    f"[WealthDesk] Chunk skipped (score {score:.2f} < {RETRIEVAL_SCORE_THRESHOLD}): "
+                    f"{doc.metadata.get('source', 'unknown')}"
+                )
+        print(f"[WealthDesk] Retrieval: {len(results)} candidates, {len(retrieved)} passed threshold ({RETRIEVAL_SCORE_THRESHOLD}).")
     except Exception as e:
         print(f"[WealthDesk] Retrieval error: {e}")
         retrieved = []
@@ -248,13 +278,15 @@ def respond(state: WealthDeskState) -> dict:
     history   = state.get("history", [])
     retrieved = state.get("retrieved_docs", [])
 
+    # S04 escalated here when retrieved was empty — no docs meant no answer.
+    # S05 removes that early return: even with no RAG docs, the LLM can still
+    # call query_rates() or query_branch() to get a live answer from the database.
+    # RAG and tools are now two independent data sources; either can satisfy the query.
     if retrieved:
-        context_block  = "\n\n---\n\n".join(retrieved)
+        context_block  = "\n\n".join(f"<policy_chunk>\n{chunk}\n</policy_chunk>" for chunk in retrieved)
         system_content = (
             SYSTEM_PROMPT
-            + "\n\nThe following sections from BNB's policy documents are relevant "
-              "to the customer's question. Use this information in your answer:\n\n"
-            + context_block
+            + f"\n\n<retrieved_documents>\n{context_block}\n</retrieved_documents>"
         )
     else:
         system_content = SYSTEM_PROMPT
@@ -270,23 +302,56 @@ def respond(state: WealthDeskState) -> dict:
     try:
         result = llm_with_tools.invoke(messages)
 
-        if result.tool_calls:
+        # We execute tools manually here because WealthDeskState uses a custom
+        # shape (history: list[dict]). In projects using LangGraph's standard
+        # MessagesState you'd use the built-in ToolNode instead:
+        #
+        #   from langgraph.prebuilt import ToolNode
+        #   builder.add_node("tools", ToolNode([query_rates, query_branch]))
+        #   builder.add_edge("respond", "tools")
+        #   builder.add_edge("tools", "respond")
+        #
+        # Both patterns are valid. ToolNode is less code; this gives more control.
+        # result.tool_calls is a list of dicts, one per tool the LLM wants to call.
+        # Each dict has exactly four keys — defined by LangChain's ToolCall TypedDict,
+        # not by us. LangChain normalises across providers (OpenAI, Anthropic, Gemini
+        # all return different raw formats; LangChain maps them to the same four keys):
+        #   tc["name"] : str  -- tool name,  e.g. "query_rates"
+        #   tc["args"] : dict -- arguments,  e.g. {"product_type": "loan"}
+        #   tc["id"]   : str  -- unique ID,  e.g. "call_abc123" (used to match ToolMessage back)
+        #   tc["type"] : str  -- always "tool_call" in this list
+        # Example for "What is the home loan rate?":
+        #   [{"name": "query_rates", "args": {"product_type": "loan"}, "id": "call_abc123", "type": "tool_call"}]
+        #
+        # AIMessage also has result.invalid_tool_calls (type = "invalid_tool_call") for
+        # malformed calls the LLM returned (bad JSON, unknown name, etc.). We log those
+        # below so they are visible rather than silently swallowed.
+        if result.invalid_tool_calls:
+            for itc in result.invalid_tool_calls:
+                print(f"[WealthDesk] Invalid tool call ignored: {itc.get('name', 'unknown')} — {itc.get('error', 'parse error')}")
+        # There can be valid as well as invalid tool calls in same turn hence two ifs instead of if else
+        # while loop (not if) handles multi-round tool calling: after executing query_rates the LLM
+        # may still want to call query_branch in the next round. Using if would call plain llm next,
+        # which has no tools bound — Groq rejects that with "Tool choice is none, but model called a tool".
+        # The loop keeps using llm_with_tools until the LLM stops requesting tools, then exits.
+        max_tool_rounds = 5
+        tool_rounds     = 0
+        while result.tool_calls and tool_rounds < max_tool_rounds:
             messages.append(result)
             for tc in result.tool_calls:
                 tool_output = _run_tool(tc["name"], tc["args"])
-                print(
-                    f"[WealthDesk] MCP tool: {tc['name']}({tc['args']}) "
-                    f"-> {str(tool_output)[:80]}"
-                )
-                messages.append(
-                    ToolMessage(
-                        content=str(tool_output),
-                        tool_call_id=tc["id"],
-                    )
-                )
-            result = llm.invoke(messages)
+                print(f"[WealthDesk] MCP tool: {tc['name']}({tc['args']}) -> {str(tool_output)[:80]}")
+                # tool_call_id links this result back to the specific tool call in the AIMessage above.
+                # When the LLM calls multiple tools in one turn, the second LLM call uses these IDs
+                # to know which result belongs to which call. Most providers reject ToolMessages
+                # that have no matching tool_call_id in the message history.
+                messages.append(ToolMessage(content=str(tool_output), tool_call_id=tc["id"]))
+            tool_rounds += 1
+            result = llm_with_tools.invoke(messages)
 
-        response_text = result.content
+        response_text = result.content or ""
+        if not response_text:
+            response_text = "I am temporarily unavailable. Please try again in a moment."
 
     except Exception as e:
         print(f"[WealthDesk] LLM error: {e}")

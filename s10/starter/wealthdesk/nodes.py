@@ -32,6 +32,8 @@ Quick self-test after each milestone:
   # After all 5 TODOs:
   python -m wealthdesk.agent   # from s10/starter/
 """
+import re
+
 from langchain_chroma import Chroma
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -44,6 +46,7 @@ from .config import (
     EMBED_MODEL,
     ESCALATE_RESPONSE,
     RETRIEVAL_K,
+    RETRIEVAL_SCORE_THRESHOLD,
     SYSTEM_PROMPT,
     VECTORSTORE_DIR,
 )
@@ -51,6 +54,15 @@ from .state import WealthDeskState
 from .tools import _run_tool, classifier_llm, llm, llm_with_tools
 
 vectorstore = None
+
+BLOCKLIST = [
+    "ignore all previous",
+    "forget everything",
+    "you are now",
+    "disregard your system",
+    "act as",
+    "jailbreak",
+]
 
 
 def _init_vectorstore() -> None:
@@ -78,13 +90,22 @@ def _doc_retrieve(state: WealthDeskState) -> dict:
     if vectorstore is None:
         return {"retrieved_docs": []}
     try:
-        docs = vectorstore.similarity_search(state["customer_message"], k=RETRIEVAL_K)
-        return {
-            "retrieved_docs": [
-                f"[{doc.metadata.get('source', 'unknown')}]\n{doc.page_content}"
-                for doc in docs
-            ]
-        }
+        results   = vectorstore.similarity_search_with_relevance_scores(
+            state["customer_message"], k=RETRIEVAL_K
+        )
+        retrieved = []
+        for doc, score in results:
+            if score >= RETRIEVAL_SCORE_THRESHOLD:
+                retrieved.append(
+                    f"[{doc.metadata.get('source', 'unknown')}]\n{doc.page_content}"
+                )
+            else:
+                print(
+                    f"[WealthDesk] Chunk skipped (score {score:.2f} < {RETRIEVAL_SCORE_THRESHOLD}): "
+                    f"{doc.metadata.get('source', 'unknown')}"
+                )
+        print(f"[WealthDesk] Retrieval: {len(results)} candidates, {len(retrieved)} passed threshold.")
+        return {"retrieved_docs": retrieved}
     except Exception as e:
         print(f"[WealthDesk] Documents Agent retrieval error: {e}")
         return {"retrieved_docs": []}
@@ -100,16 +121,14 @@ def _doc_respond(state: WealthDeskState) -> dict:
     history   = state.get("history", [])
     retrieved = state.get("retrieved_docs", [])
 
-    context_block  = "\n\n---\n\n".join(retrieved) if retrieved else ""
-    system_content = (
-        DOCS_SYSTEM_PROMPT
-        + (
-            "\n\nThe following sections from BNB's policy documents are relevant "
-            "to the customer's question. Use this information in your answer:\n\n"
-            + context_block
-            if context_block else ""
+    if retrieved:
+        context_block  = "\n\n".join(f"<policy_chunk>\n{chunk}\n</policy_chunk>" for chunk in retrieved)
+        system_content = (
+            DOCS_SYSTEM_PROMPT
+            + f"\n\n<retrieved_documents>\n{context_block}\n</retrieved_documents>"
         )
-    )
+    else:
+        system_content = DOCS_SYSTEM_PROMPT
 
     messages = [SystemMessage(content=system_content)]
     for turn in history:
@@ -155,7 +174,16 @@ def _rates_respond(state: WealthDeskState) -> dict:
     try:
         result = llm_with_tools.invoke(messages)
 
-        if result.tool_calls:
+        if result.invalid_tool_calls:
+            for itc in result.invalid_tool_calls:
+                print(f"[WealthDesk] Invalid tool call ignored: {itc.get('name', 'unknown')} — {itc.get('error', 'parse error')}")
+
+        # while (not if) handles multi-round tool calling: the LLM may call query_rates,
+        # then also want query_branch. Using if would call plain llm next — Groq rejects
+        # that with "Tool choice is none, but model called a tool".
+        max_tool_rounds = 5
+        tool_rounds     = 0
+        while result.tool_calls and tool_rounds < max_tool_rounds:
             messages.append(result)
             for tc in result.tool_calls:
                 tool_output = _run_tool(tc["name"], tc["args"])
@@ -164,9 +192,10 @@ def _rates_respond(state: WealthDeskState) -> dict:
                     f"-> {str(tool_output)[:80]}"
                 )
                 messages.append(ToolMessage(content=str(tool_output), tool_call_id=tc["id"]))
-            result = llm.invoke(messages)
+            tool_rounds += 1
+            result = llm_with_tools.invoke(messages)
 
-        response_text = result.content
+        response_text = result.content or "I am temporarily unavailable. Please try again in a moment."
 
     except Exception as e:
         print(f"[WealthDesk] Rates Agent LLM error: {e}")
@@ -254,18 +283,33 @@ def classify(state: WealthDeskState) -> dict:
     about personal loans?") are classified with their context, not in isolation.
     temperature=0 on classifier_llm → deterministic, reproducible routing.
     """
+    msg = state["customer_message"].strip()
+    if not msg or len(msg) < 3 or len(msg) > 500:
+        return {"query_type": "OUT_OF_SCOPE"}
+    if any(phrase in msg.lower() for phrase in BLOCKLIST):
+        return {"query_type": "OUT_OF_SCOPE"}
+
     messages = [SystemMessage(content=CLASSIFY_SYSTEM)]
     for turn in state.get("history", [])[-2:]:
         messages.append(
             HumanMessage(content=turn["content"]) if turn["role"] == "user"
             else AIMessage(content=turn["content"])
         )
-    messages.append(HumanMessage(content=state["customer_message"]))
+    messages.append(HumanMessage(content=msg))
     try:
-        result     = classifier_llm.invoke(messages)
-        query_type = result.content.strip().upper()
-        if query_type not in {"RATES", "POLICY", "COMPLEX", "OUT_OF_SCOPE"}:
-            query_type = "RATES"   # safe default: a missed rate question < a silenced policy question
+        result = classifier_llm.invoke(messages)
+        raw    = result.content.strip().upper()
+        if "POLICY" in raw:
+            query_type = "POLICY"
+        elif "COMPLEX" in raw:
+            query_type = "COMPLEX"
+        elif "OUT_OF_SCOPE" in raw or "OUT OF SCOPE" in raw:
+            query_type = "OUT_OF_SCOPE"
+        elif "RATES" in raw:
+            query_type = "RATES"
+        else:
+            print(f"[WealthDesk] Unexpected classifier output: {repr(raw)} — defaulting to RATES")
+            query_type = "RATES"
     except Exception as e:
         print(f"[WealthDesk] Supervisor classification error: {e}")
         query_type = "RATES"

@@ -34,7 +34,7 @@ Inspect with MCP Inspector
 import sqlite3
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 # ---------------------------------------------------------------------------
 # Server instantiation
